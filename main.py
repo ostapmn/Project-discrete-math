@@ -17,6 +17,7 @@ EPSILON = 0.01
 page_rank = {key: START_RANK for key in graph.nodes}
 page_prev = {key: 0 for key in graph.nodes}
 
+
 while True:
     for node in page_rank:
         current_rank = 0
@@ -29,7 +30,6 @@ while True:
     diff = sum(abs(page_prev[node] - page_rank[node]) for node in graph.nodes)
     if diff < EPSILON:
         break
-
     page_rank = dict(page_prev.items())
 
 page_rank = dict(sorted(page_rank.items(), key = lambda x: -x[1]))
