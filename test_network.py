@@ -1,13 +1,25 @@
 """Module for testing lib functions"""
-import networkx as nx
-import matplotlib.pyplot as plt
 
-edge_list = [(1,3), (3,2), (1, 5)]
+import re
+import unicodedata
+from pdfminer.high_level import extract_text
 
-graph = nx.DiGraph()
-graph.add_edges_from(edge_list)
-graph.add_edge(1,2)
+PATTERN = re.compile(r'\[\d*?\]')
 
+def normalize_text(text):
+    normalized = unicodedata.normalize("NFKD", text)
+    return normalized
 
-nx.draw_spring(graph)
-plt.show()
+x = extract_text('test_papers/higherandderivedstacksaglobaloverview.pdf')
+
+print(normalize_text(x))
+
+# print(x.pages[1])
+# text = ''
+# marker = False
+# for page in x.pages:
+#     words = page.extract_text()
+#     if ('References' in words) or marker:
+#         marker = True
+#         text += words
+
