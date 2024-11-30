@@ -33,7 +33,7 @@ def read_pdf(file_name: str, graph = None) -> list:
     folder, paper_name = file_name.split('/') # we assume that all our files in one directory
     if file_name[:-4] in graph.keys():
         return graph
-    
+
     text = extract_text(file_name) #extracting text from pdf
     start_point = text.find('References\n') # starting point from wear to parse the text
     matches = re.findall(PATTERN, normalize_text(text[start_point:])) # finding matches
@@ -41,15 +41,15 @@ def read_pdf(file_name: str, graph = None) -> list:
         return graph
 # changing el name deliting special symbols and checking if we have such element in our folder
 # so not to add unnececary ones
-    graph[paper_name[:-4]] = [el[2].lower().replace(' ', '').replace(':', '') for el in matches
-    if f'{el[2].lower().replace(' ', '').replace(':', '')}.pdf' in os.listdir(folder)]
+    graph[paper_name[:-4]] = [el[2].lower() for el in matches
+    if f'{el[2].lower().replace(':', '')}.pdf' in os.listdir(folder)]
     for paper in graph[paper_name[:-4]]:
         if paper not in graph.keys():
             new_path = f'{folder}/{paper}.pdf'
             read_pdf(new_path, graph)
     return graph
 
-# print(read_pdf('test_papers/higherandderivedstacksaglobaloverview.pdf'))
+# print(read_pdf('test_papers/higher and derived stacks a global overview.pdf').keys())
 
 graph_rank = nx.DiGraph()
 graph_rank.add_edges_from(edge_list)
