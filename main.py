@@ -6,30 +6,55 @@ import unicodedata
 import re
 import os
 from collections import deque
-from functools import lru_cache
 import networkx as nx
-import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
 from pdfminer.high_level import extract_text # lib to work with pdf files
 
-PATTERN = re.compile(r'\[(.+?)\]\s+([\w.,\s&]+?),\s+(.*?),\s+(.*?)(?:\.|\n)') # pattern to identify paper name
+# Pattern to identify paper name
+PATTERN = re.compile(r'\[(.+?)\]\s+([\w.,\s&]+?),\s+(.*?),\s+(.*?)(?:\.|\n)')
 
-# edge_list = [('A', 'B'), ('B', 'D'), ('A', 'C'), ('C', 'D'), ('C', 'B'), ('C', 'A'), ('D', 'C')]
+def name_changer(name:str) -> dict:
+    """
+    Function to normalize file names
+    so they align by file naming rules
+    Args:
+        name (str): old name
+
+    Returns:
+        dict: new name
+    >>> name_changer('higher and derived stacks: a "global" overview')
+    'higher and derived stacks a global overview'
+    """
+    new_name = name.lower().replace(':', '').replace('"', '')
+    return new_name
 
 def normalize_text(text):
-    """Function to convert 'unique' elements to normal one"""
+    """Function to convert 'unique' elements to normal one
+    ﬁ → a single ligature character: U+FB01 ('unique')
+    fi → two separate characters: f + i
+    >>> normalize_text('ﬁ')
+    'fi'
+    """
     normalized = unicodedata.normalize("NFKD", text)
     return normalized
 
-def read_pdf(file_name: str, graph = None) -> list:
+def read_pdf(file_name: str, graph = None) -> dict:
     """
     Function reads pdf file and creates graph from it
     Args:
         file_name (str): path to local files
 
     Returns:
-        list[tuple[str]]: _description_
+        dict[str: list]: files and their links
+    >>> list(read_pdf('test_papers/higher and derived stacks a global overview.pdf').keys())
+    ['higher and derived stacks a global overview', 'three models for the homotopy theory \
+of homotopy theories', 'a characterization of fibrant segal categories', 'a model category \
+structure on the category of simplicial categories', 'simplicial monoids and segal categories']
+    >>> read_pdf('test_papers/higher and derived stacks a global \
+overview.pdf')['higher and derived stacks a global overview']
+    ['three models for the homotopy theory of homotopy theories', 'a characterization \
+of fibrant segal categories']
     """
     if graph is None:
         graph = {}
@@ -44,119 +69,153 @@ def read_pdf(file_name: str, graph = None) -> list:
         return graph
 # changing el name deliting special symbols and checking if we have such element in our folder
 # so not to add unnececary ones
-    graph[paper_name[:-4]] = [el[2].lower().replace(' ', '').replace(':', '') for el in matches
-    if f'{el[2].lower().replace(' ', '').replace(':', '')}.pdf' in os.listdir(folder)]
+    graph[paper_name[:-4]] = [name_changer(el[2]) for el in matches
+    if f'{name_changer(el[2])}.pdf' in os.listdir(folder) and
+    name_changer(el[2]) != paper_name[:-4]]
     for paper in graph[paper_name[:-4]]:
         if paper not in graph.keys():
             new_path = f'{folder}/{paper}.pdf'
             read_pdf(new_path, graph)
     return graph
 
-# print(read_pdf('test_papers/higherandderivedstacksaglobaloverview.pdf'))
-
 #===Pages directions===#
 
-def pages_directions(pages: dict) -> list[tuple[str]]:
+def pages_directions(pages: dict) -> tuple[list[tuple], dict]:
     """
     Converts inout dict into a list of list with a links directions.
     """
-    pages_list = []
-    for key, values in pages.items():
-        if len(values) == 1:
-            values = str(values).lstrip("['").rstrip("']")
-            pages_list.append((key, values))
-        elif len(values) > 1:
-            for one_val in values:
-                pages_list.append((key, one_val))
-    pages_list = sorted(pages_list)
-    return pages_list
+    pages_list = [(key, val) for key in pages for val in pages[key]]
+    f_name = set(i for el in pages_list for i in el)
+    characters = [chr(i) for i in range(ord('A'), ord('Z')+1)]
+    new_name = dict(zip(f_name, characters))
+    return ([tuple(new_name[c] for c in el) for el in pages_list], new_name)
 
-def bfs(graph: dict, start: str) -> list:
+# print(pages_directions(read_pdf('test_papers/higher and derived stacks a global overview.pdf')))
+
+def bfs(graph: nx.DiGraph, start: str) -> list:
     """
     BFS algorithm.
 
     :param graph: dict, A directed graph.
     :param start: str, A start node.
     :return: list, An ordered sequence of visited elements.
+    >>> import networkx as nx
+    >>> graph = nx.DiGraph()
+    >>> graph.add_edges_from([(1, 2), (1, 3), (2, 4), (3, 4)])
+    >>> bfs(graph, 1)
+    [1, 2, 3, 4]
+    >>> bfs(graph, 2)
+    [2, 4]
     """
     visited = []
     queue = deque([start])
 
     while queue:
-        node = queue.popleft()
+        node_graph = queue.popleft()
 
-        if node not in visited:
-            visited.append(node)
-            queue.extend(neighbor for neighbor in graph.neighbors(node) if neighbor not in visited)
+        if node_graph not in visited:
+            visited.append(node_graph)
+            queue.extend(neighbor for neighbor in graph.neighbors(node_graph)
+                         if neighbor not in visited)
 
     return visited
 
-# print(pages_directions(
-#     read_pdf('test_papers/higherandderivedstacksaglobaloverview.pdf')))
+def page_rank_calc(graph: nx.DiGraph, page_rank:dict,
+                   page_current:dict, damping_factor:float) -> dict:
+    """
+    Function calculates page rank
 
-graph_rank = nx.DiGraph()
-# graph_rank.add_edges_from(pages_directions(
-#     read_pdf('test_papers/higherandderivedstacksaglobaloverview.pdf')))
+    Args:
+        graph (nx.DiGraph): directed graph
+        page_rank (dict): page rank
+        page_current (dict): page rank for current iteration
+        damping_factor (float): damping factor
 
-graph_rank.add_edges_from([('acharacterizationoffibrantsegalcategories', 'threemodelsforthehomotopytheoryofhomotopytheories'), ('higherandderivedstacksaglobaloverview', 'acharacterizationoffibrantsegalcategories'), ('higherandderivedstacksaglobaloverview', 'threemodelsforthehomotopytheoryofhomotopytheories'), ('threemodelsforthehomotopytheoryofhomotopytheories', 'acharacterizationoffibrantsegalcategories')])
+    Returns:
+        dict: calculated page rank
+    """
+    while True:
+        for node in page_rank:
+            current_rank = 0
+            reachable_nodes = bfs(graph, node)
 
-ITERATIONS = len(graph_rank.nodes)
-START_RANK = 1 / ITERATIONS
-EPSILON = 0.01
-DAMPING_FACTOR = 0.85
+            for el in reachable_nodes:
+                if graph.has_edge(el, node):
+                    out_links = graph.out_degree(el)
 
-page_rank = {key: START_RANK for key in graph_rank.nodes}
-page_prev = {key: 0 for key in graph_rank.nodes}
+                    if out_links > 0:
+                        current_rank += page_rank[el] / out_links
 
-while True:
-    for node in page_rank:
-        current_rank = 0
-        reachable_nodes = bfs(graph_rank, node)
+            page_current[node] = round((1 - damping_factor) + damping_factor * current_rank, 5)
 
-        for el in reachable_nodes:
-            if graph_rank.has_edge(el, node):
-                out_links = graph_rank.out_degree(el)
+        diff = [abs(page_current[node] - page_rank[node])<0.01 for node in graph.nodes]
 
-                if out_links > 0:
-                    current_rank += page_rank[el] / out_links
+        if all(diff):
+            break
 
-        page_prev[node] = (1 - DAMPING_FACTOR) + DAMPING_FACTOR * current_rank
+        page_rank = dict(page_current.items())
+    return page_rank
 
-    diff = [abs(page_prev[node] - page_rank[node])<EPSILON for node in graph_rank.nodes]
+def main(path:str) -> dict:
+    """
+    Function to compile project
+    Args:
+        path (str): path to the file
+    >>> set(main('test_papers/higher and derived stacks a global overview.pdf').values())==\
+{1.65773, 0.78997, 0.61641, 0.15}
+    True
+    """
+    graph_rank = nx.DiGraph()
+    graph_rank.add_edges_from(pages_directions(
+        read_pdf(path))[0])
 
-    if all(diff):
-        break
+    start_rank = 1 / len(graph_rank.nodes)
+    damping_factor = 0.85
 
-    page_rank = dict(page_prev.items())
+    page_rank = {key: start_rank for key in graph_rank.nodes}
+    page_current = {key: 0 for key in graph_rank.nodes}
+
+    page_rank= page_rank_calc(graph_rank, page_rank, page_current, damping_factor)
+
+    norm_rank_values = list(page_rank.values())
+
+    page_rank = dict(sorted(page_rank.items(), key = lambda x: -x[1]))
+
+    # Create a custom colormap from light blue to dark blue
+    light_to_dark_blue = LinearSegmentedColormap.from_list("LightToDarkBlue",
+                                                           ["#add8e6", "#00008b"])
+
+    # Create the figure and axis explicitly
+    fig, ax = plt.subplots(figsize=(12, 10))
+
+    # Draw the graph with circular layout
+    pos = nx.circular_layout(graph_rank)
+    nx.draw_networkx_nodes(
+        graph_rank, pos, node_color=norm_rank_values, cmap=light_to_dark_blue,
+        node_size=400, ax=ax)
+
+    nx.draw_networkx_edges(graph_rank, pos, edge_color='gray', ax=ax, arrowsize=20)
+    nx.draw_networkx_labels(graph_rank, pos, font_size=10, font_color='black', ax=ax)
+
+    # Add a colorbar to indicate PageRank values
+    sm = plt.cm.ScalarMappable(cmap=light_to_dark_blue,
+                        norm=plt.Normalize(vmin=min(norm_rank_values), vmax=max(norm_rank_values)))
+    fig.colorbar(sm, ax=ax, label='PageRank Score')
+
+    # Display the graph
+    info = pages_directions(read_pdf(path))[1]
+
+    legend_handles = [
+        plt.Line2D([0], [0], marker='o', color='w', markersize=10, label=category)
+        for category in info.items()
+    ]
+    fig.legend(handles=legend_handles, title="Names", loc="upper left")
+
+    plt.show()
+    return page_rank
 
 
-page_rank = dict(sorted(page_rank.items(), key = lambda x: -x[1]))
-
-# Normalize PageRank values for color mapping
-rank_values = np.array(list(page_rank.values()))
-norm_rank_values = (rank_values - rank_values.min()) / (rank_values.max() - rank_values.min())
-
-# Create a custom colormap from light blue to dark blue
-light_to_dark_blue = LinearSegmentedColormap.from_list("LightToDarkBlue", ["#add8e6", "#00008b"])
-
-# Create the figure and axis explicitly
-fig, ax = plt.subplots(figsize=(8, 6))
-
-# Draw the graph with circular layout
-pos = nx.circular_layout(graph_rank)
-nodes = nx.draw_networkx_nodes(
-    graph_rank, pos, node_color=norm_rank_values, cmap=light_to_dark_blue, node_size=800, ax=ax
-)
-edges = nx.draw_networkx_edges(graph_rank, pos, edge_color='gray', ax=ax)
-nx.draw_networkx_labels(graph_rank, pos, font_size=10, font_color='white', ax=ax)
-
-# Add a colorbar to indicate PageRank values
-sm = plt.cm.ScalarMappable(cmap=light_to_dark_blue, norm=plt.Normalize(vmin=rank_values.min(), vmax=rank_values.max()))
-sm.set_array([])
-cbar = fig.colorbar(sm, ax=ax, label='PageRank Score')
-
-# Display the graph
-print(page_rank)
-nx.draw_circular(graph_rank, with_labels = True)
-
-plt.show()
+if __name__ == "__main__":
+    import doctest
+    print(doctest.testmod())
+    main('test_papers/higher and derived stacks a global overview.pdf')
