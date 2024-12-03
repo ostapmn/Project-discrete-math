@@ -23,14 +23,18 @@ def name_changer(name:str) -> dict:
 
     Returns:
         dict: new name
+    >>> name_changer('higher and derived stacks: a "global" overview')
+    'higher and derived stacks a global overview'
     """
-    new_name = name.lower().replace(':', '')
+    new_name = name.lower().replace(':', '').replace('"', '')
     return new_name
 
 def normalize_text(text):
     """Function to convert 'unique' elements to normal one
     ﬁ → a single ligature character: U+FB01 ('unique')
     fi → two separate characters: f + i
+    >>> normalize_text('ﬁ')
+    'fi'
     """
     normalized = unicodedata.normalize("NFKD", text)
     return normalized
@@ -42,7 +46,15 @@ def read_pdf(file_name: str, graph = None) -> dict:
         file_name (str): path to local files
 
     Returns:
-        dict[str: list]: files and their links 
+        dict[str: list]: files and their links
+    >>> list(read_pdf('test_papers/higher and derived stacks a global overview.pdf').keys())
+    ['higher and derived stacks a global overview', 'three models for the homotopy theory \
+of homotopy theories', 'a characterization of fibrant segal categories', 'a model category \
+structure on the category of simplicial categories', 'simplicial monoids and segal categories']
+    >>> read_pdf('test_papers/higher and derived stacks a global \
+overview.pdf')['higher and derived stacks a global overview']
+    ['three models for the homotopy theory of homotopy theories', 'a characterization \
+of fibrant segal categories']
     """
     if graph is None:
         graph = {}
@@ -78,6 +90,7 @@ def pages_directions(pages: dict) -> tuple[list[tuple], dict]:
     new_name = dict(zip(f_name, characters))
     return ([tuple(new_name[c] for c in el) for el in pages_list], new_name)
 
+# print(pages_directions(read_pdf('test_papers/higher and derived stacks a global overview.pdf')))
 
 def bfs(graph: nx.DiGraph, start: str) -> list:
     """
@@ -86,6 +99,13 @@ def bfs(graph: nx.DiGraph, start: str) -> list:
     :param graph: dict, A directed graph.
     :param start: str, A start node.
     :return: list, An ordered sequence of visited elements.
+    >>> import networkx as nx
+    >>> graph = nx.DiGraph()
+    >>> graph.add_edges_from([(1, 2), (1, 3), (2, 4), (3, 4)])
+    >>> bfs(graph, 1)
+    [1, 2, 3, 4]
+    >>> bfs(graph, 2)
+    [2, 4]
     """
     visited = []
     queue = deque([start])
@@ -100,39 +120,62 @@ def bfs(graph: nx.DiGraph, start: str) -> list:
 
     return visited
 
-def main(path:str):
-    graph_rank = nx.DiGraph()
-    graph_rank.add_edges_from(pages_directions(
-        read_pdf(path))[0])
+def page_rank_calc(graph: nx.DiGraph, page_rank:dict,
+                   page_current:dict, damping_factor:float) -> dict:
+    """
+    Function calculates page rank
 
-    start_rank = 1 / len(graph_rank.nodes)
-    epsilon = 0.01
-    damping_factor = 0.85
+    Args:
+        graph (nx.DiGraph): directed graph
+        page_rank (dict): page rank
+        page_current (dict): page rank for current iteration
+        damping_factor (float): damping factor
 
-    page_rank = {key: start_rank for key in graph_rank.nodes}
-    page_current = {key: 0 for key in graph_rank.nodes}
-
+    Returns:
+        dict: calculated page rank
+    """
     while True:
         for node in page_rank:
             current_rank = 0
-            reachable_nodes = bfs(graph_rank, node)
+            reachable_nodes = bfs(graph, node)
 
             for el in reachable_nodes:
-                if graph_rank.has_edge(el, node):
-                    out_links = graph_rank.out_degree(el)
+                if graph.has_edge(el, node):
+                    out_links = graph.out_degree(el)
 
                     if out_links > 0:
                         current_rank += page_rank[el] / out_links
 
             page_current[node] = round((1 - damping_factor) + damping_factor * current_rank, 5)
 
-        diff = [abs(page_current[node] - page_rank[node])<epsilon for node in graph_rank.nodes]
+        diff = [abs(page_current[node] - page_rank[node])<0.01 for node in graph.nodes]
 
         if all(diff):
             break
 
         page_rank = dict(page_current.items())
+    return page_rank
 
+def main(path:str) -> dict:
+    """
+    Function to compile project
+    Args:
+        path (str): path to the file
+    >>> set(main('test_papers/higher and derived stacks a global overview.pdf').values())==\
+{1.65773, 0.78997, 0.61641, 0.15}
+    True
+    """
+    graph_rank = nx.DiGraph()
+    graph_rank.add_edges_from(pages_directions(
+        read_pdf(path))[0])
+
+    start_rank = 1 / len(graph_rank.nodes)
+    damping_factor = 0.85
+
+    page_rank = {key: start_rank for key in graph_rank.nodes}
+    page_current = {key: 0 for key in graph_rank.nodes}
+
+    page_rank= page_rank_calc(graph_rank, page_rank, page_current, damping_factor)
 
     norm_rank_values = list(page_rank.values())
 
@@ -143,7 +186,7 @@ def main(path:str):
                                                            ["#add8e6", "#00008b"])
 
     # Create the figure and axis explicitly
-    fig, ax = plt.subplots(figsize=(12, 12))
+    fig, ax = plt.subplots(figsize=(12, 10))
 
     # Draw the graph with circular layout
     pos = nx.circular_layout(graph_rank)
@@ -169,8 +212,10 @@ def main(path:str):
     fig.legend(handles=legend_handles, title="Names", loc="upper left")
 
     plt.show()
-    print(page_rank)
+    return page_rank
 
 
-if __name__ == "__main__":  
+if __name__ == "__main__":
+    import doctest
+    print(doctest.testmod())
     main('test_papers/higher and derived stacks a global overview.pdf')
