@@ -90,7 +90,6 @@ def pages_directions(pages: dict) -> tuple[list[tuple], dict]:
     new_name = dict(zip(f_name, characters))
     return ([tuple(new_name[c] for c in el) for el in pages_list], new_name)
 
-# print(pages_directions(read_pdf('test_papers/higher and derived stacks a global overview.pdf')))
 
 def bfs(graph: nx.DiGraph, start: str) -> list:
     """
