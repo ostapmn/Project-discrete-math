@@ -11,13 +11,21 @@ edge_list = [('A', 'B'), ('B', 'D'), ('A', 'C'), ('C', 'D'), ('C', 'B'), ('C', '
 graph = nx.DiGraph()
 graph.add_edges_from(edge_list)
 
-def bfs(graph: dict, start: str) -> list:
+def bfs(graph: nx.Digraph, start: str) -> list:
     """
     BFS algorithm.
 
-    :param graph: dict, A directed graph.
+    :param graph: nx.Digraph, A directed graph.
     :param start: str, A start node.
     :return: list, An ordered sequence of visited elements.
+
+    >>> import networkx as nx
+    >>> graph = nx.DiGraph()
+    >>> graph.add_edges_from([(1, 2), (1, 3), (2, 4), (3, 4)])
+    >>> bfs(graph, 1)
+    [1, 2, 3, 4]
+    >>> bfs(graph, 2)
+    [2, 4]
     """
     visited = []
     queue = deque([start])
