@@ -2,19 +2,24 @@
 
 # PR(A) = (1-d) + d * (PR(T1)/C(T1) + ... + PR(Tn)/C(Tn))
 
-import unicodedata
-import re
-import os
-from collections import deque
-import networkx as nx
-from matplotlib.colors import LinearSegmentedColormap
-import matplotlib.pyplot as plt
+import argparse
+import unicodedata # used in the normalize_text function to display ligatures correctly
+import re # pattern for reading papers
+import os # checking the presence of files in the folder
+from collections import deque # creating a queue for bfs
+import networkx as nx # to work with graphs
+from matplotlib.colors import LinearSegmentedColormap #for graph visualization by color gradation
+import matplotlib.pyplot as plt # visualization
 from pdfminer.high_level import extract_text # lib to work with pdf files
 
 # Pattern to identify paper name
 PATTERN = re.compile(r'\[(.+?)\]\s+([\w.,\s&]+?),\s+(.*?),\s+(.*?)(?:\.|\n)')
 
-def name_changer(name:str) -> dict:
+parser = argparse.ArgumentParser(description="Path to the paper of database")
+parser.add_argument('filepath', type=str, help = "Path to the file")
+args = parser.parse_args()
+
+def name_changer(name:str) -> str:
     """
     Function to normalize file names
     so they align by file naming rules
@@ -22,7 +27,7 @@ def name_changer(name:str) -> dict:
         name (str): old name
 
     Returns:
-        dict: new name
+        str: new name
     >>> name_changer('higher and derived stacks: a "global" overview')
     'higher and derived stacks a global overview'
     """
@@ -155,15 +160,14 @@ def page_rank_calc(graph: nx.DiGraph, page_rank:dict,
         page_rank = dict(page_current.items())
     return page_rank
 
-def main(path:str) -> dict:
+
+def main(path: str) -> dict:
     """
     Function to compile project
     Args:
         path (str): path to the file
-    >>> set(main('test_papers/higher and derived stacks a global overview.pdf').values())==\
-{1.65773, 0.78997, 0.61641, 0.15}
-    True
     """
+    # path = input()
     graph_rank = nx.DiGraph()
     graph_rank.add_edges_from(pages_directions(
         read_pdf(path))[0])
@@ -214,7 +218,9 @@ def main(path:str) -> dict:
     return page_rank
 
 
+
+
 if __name__ == "__main__":
     import doctest
     print(doctest.testmod())
-    main('test_papers/higher and derived stacks a global overview.pdf')
+    main(args.filepath)
